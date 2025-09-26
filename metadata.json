@@ -1,0 +1,5 @@
+{
+  "name": "Karaoke Car",
+  "description": "Un'applicazione web per visualizzare i testi delle canzoni sincronizzati in tempo reale. Inserisci un artista e un titolo per generare e visualizzare i testi, con una speciale modalità auto per una migliore visibilità durante la guida.",
+  "requestFramePermissions": []
+}
