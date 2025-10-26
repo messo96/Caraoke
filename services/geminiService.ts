@@ -1,10 +1,12 @@
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import Constants from 'expo-constants';
 import type { Lyrics, LyricLine } from '../types';
 
 // Inizializza il client dell'API Gemini.
-// La chiave API deve essere fornita tramite la variabile d'ambiente process.env.API_KEY.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// La chiave API deve essere configurata in app.json sotto extra.apiKey
+const apiKey = Constants.expoConfig?.extra?.apiKey || 'YOUR_API_KEY_HERE';
+const genAI = new GoogleGenerativeAI(apiKey);
 
 /**
  * Analizza una stringa in formato LRC e la converte in un array di oggetti LyricLine.
@@ -53,12 +55,9 @@ export const fetchLyrics = async (title: string, artist: string): Promise<Lyrics
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    });
-    
-    const text = response.text;
+    const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
+    const response = await model.generateContent(prompt);
+    const text = response.response.text();
 
     if (text.includes('[') && text.includes(']')) {
       const synced = parseLRC(text);

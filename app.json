@@ -1,0 +1,82 @@
+{
+  "expo": {
+    "name": "Karaoke Car",
+    "slug": "karaoke-car-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.yourcompany.karaokecar",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "MKDirectionsApplicationSupportedModes": ["MKDirectionsModeCar"],
+        "CPSupportedAudioFormats": ["CPAudioFormatMPEG", "CPAudioFormatAAC"],
+        "CPTemplateApplicationCategory": "music"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#000000"
+      },
+      "package": "com.gio.karaokecar",
+      "permissions": [
+        "android.permission.INTERNET",
+        "android.permission.ACCESS_NETWORK_STATE",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.MEDIA_CONTENT_CONTROL",
+        "android.permission.BIND_NOTIFICATION_LISTENER_SERVICE",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.WAKE_LOCK"
+      ],
+      "intentFilters": [
+        {
+          "action": "android.media.browse.MediaBrowserService",
+          "category": ["android.intent.category.DEFAULT"]
+        },
+        {
+          "action": "android.intent.action.MEDIA_BUTTON",
+          "category": ["android.intent.category.DEFAULT"]
+        }
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "extra": {
+      "apiKey": "YOUR_GEMINI_API_KEY_HERE",
+      "eas": {
+        "projectId": "f913bd67-36cf-483c-a13a-c5518b55c68c"
+      }
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Permetti all'app di accedere al microfono per il karaoke."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#34D399",
+          "sounds": []
+        }
+      ]
+    ]
+  }
+}

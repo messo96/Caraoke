@@ -1,0 +1,4 @@
+- [ ] Quando vai su input manual metti solamente un textbox e metti l'autocompletamento con la canzone, il nome del cantante/band e il l'immagine della canzone.
+- [ ] Quando clicco sulla canzone avvia il testo sincronizzato, se non è sincronizzato avvia solamente il testo dall'inizio
+- [ ] Per il rilevamento automatico rileva in automatico la canzone e avvia automaticamente il testo sincronizzato, prendi il nome del cantante/band e il nome della canzone dalla musica sul telefono che sta riproducendo.
+- [ ] Se android auto /Apple CarPlay è attivo allora mostra il testo sullo schermo dell'auto

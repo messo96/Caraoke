@@ -1,42 +1,49 @@
 
 import React, { useState, useCallback, useEffect } from 'react';
+import { 
+  View, 
+  Text, 
+  StatusBar, 
+  SafeAreaView,
+  ImageBackground,
+  StyleSheet,
+  Dimensions,
+  TouchableOpacity,
+  Alert
+} from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SongInputForm } from './components/SongInputForm';
+import { AutoDetectForm } from './components/AutoDetectForm';
 import { LyricsDisplay } from './components/LyricsDisplay';
 import { PlayerControls } from './components/PlayerControls';
+import { CarIntegration } from './components/CarIntegration';
 import { useLyricSync } from './hooks/useLyricSync';
 import { fetchLyrics } from './services/geminiService';
+import { useAndroidAuto } from './services/androidAutoService';
 import { CarIcon } from './components/Icon';
 import type { Song, Lyrics } from './types';
 
 /*
- * README / ISTRUZIONI
+ * KARAOKE CAR - MOBILE APP
  * 
- * Questa è un'applicazione React che simula un'app di "Karaoke per auto".
- * A causa delle limitazioni del browser, non può rilevare automaticamente la musica in riproduzione
- * da altre app (come Spotify). Invece, l'utente deve inserire manualmente l'artista e il titolo.
+ * App di Karaoke per dispositivi mobili Android e iOS.
+ * Utilizza React Native con Expo per un'esperienza cross-platform.
  * 
  * SETUP:
- * 1. Assicurati di avere Node.js installato.
- * 2. Crea un file `.env` nella root del progetto.
- * 3. Aggiungi la tua chiave API di Google Gemini al file `.env`:
- *    API_KEY=LA_TUA_CHIAVE_API
- * 4. Avvia il server di sviluppo (es. con Vite o Create React App).
+ * 1. Installa Expo CLI: npm install -g expo-cli
+ * 2. Installa le dipendenze: npm install
+ * 3. Configura la tua chiave API di Google Gemini in Constants.expoConfig.extra.apiKey
+ * 4. Avvia l'app: expo start
  *
  * FUNZIONAMENTO:
  * 1. L'app mostra un form per inserire artista e titolo.
  * 2. Dopo l'invio, chiama l'API di Gemini per generare i testi in formato LRC.
  * 3. Se i testi sono sincronizzati, vengono visualizzati e sincronizzati con un timer interno.
  * 4. Se non sono sincronizzati, viene mostrato il testo statico.
- * 5. È disponibile una "Modalità Auto" con un'interfaccia semplificata, a contrasto elevato e con caratteri grandi.
- *
- * TEST MANUALE:
- * 1. Avvia l'app.
- * 2. Inserisci un artista e un titolo noti (es. "Queen", "Bohemian Rhapsody").
- * 3. Clicca su "Cerca Testi".
- * 4. Se la ricerca ha successo, dovresti vedere la schermata dei testi.
- * 5. Usa i controlli del player per avviare/mettere in pausa la sincronizzazione dei testi.
- * 6. Attiva/disattiva la "Modalità Auto" per vedere le differenze nell'interfaccia.
+ * 5. È disponibile una "Modalità Auto" con un'interfaccia ottimizzata per l'uso in auto.
  */
+
+const { width, height } = Dimensions.get('window');
 
 const App: React.FC = () => {
   const [song, setSong] = useState<Song | null>(null);
@@ -45,12 +52,41 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isCarMode, setIsCarMode] = useState(false);
+  const [useAutoDetect, setUseAutoDetect] = useState(true);
+
+  // Hook per Android Auto
+  const androidAuto = useAndroidAuto();
 
   const { currentTime, currentLineIndex, seek, reset } = useLyricSync(
     isPlaying,
     song?.duration ?? 300,
     lyrics?.synced ?? []
   );
+
+  // Aggiorna Android Auto quando cambia la canzone o lo stato di riproduzione
+  useEffect(() => {
+    if (song && isPlaying) {
+      const currentLyric = lyrics?.synced && currentLineIndex >= 0 
+        ? lyrics.synced[currentLineIndex]?.text 
+        : undefined;
+      
+      androidAuto.updateNowPlaying(song, isPlaying, currentLyric);
+    } else if (!isPlaying && song) {
+      androidAuto.updateNowPlaying(song, false);
+    } else {
+      androidAuto.clearNowPlaying();
+    }
+  }, [song, isPlaying, currentLineIndex, lyrics]);
+
+  // Aggiorna il testo corrente su Android Auto
+  useEffect(() => {
+    if (song && isPlaying && lyrics?.synced && currentLineIndex >= 0) {
+      const currentLyric = lyrics.synced[currentLineIndex]?.text;
+      if (currentLyric) {
+        androidAuto.updateCurrentLyric(currentLyric);
+      }
+    }
+  }, [currentLineIndex, lyrics, song, isPlaying]);
 
   const handleSearch = useCallback(async (artist: string, title: string) => {
     setIsLoading(true);
@@ -72,6 +108,11 @@ const App: React.FC = () => {
 
       setSong(newSong);
       setLyrics(fetchedLyrics);
+      
+      // Avvia automaticamente la riproduzione quando i testi sono caricati
+      // Se ci sono testi sincronizzati, avvia subito
+      // Se ci sono solo testi non sincronizzati, avvia comunque per mostrare il testo
+      setIsPlaying(true);
 
     } catch (e) {
       if (e instanceof Error) {
@@ -97,104 +138,341 @@ const App: React.FC = () => {
     reset();
   }
 
-  useEffect(() => {
-    document.body.className = isCarMode 
-      ? 'bg-black text-white' 
-      : 'bg-gray-900 text-white';
-  }, [isCarMode]);
+  const renderContent = () => {
+    if (!song) {
+      return (
+        <View style={styles.centeredContainer}>
+          <View style={styles.inputToggle}>
+            <TouchableOpacity
+              style={[styles.toggleButton, useAutoDetect && styles.toggleButtonActive]}
+              onPress={() => setUseAutoDetect(true)}
+            >
+              <Text style={styles.toggleButtonText}>Auto-Rilevamento</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.toggleButton, !useAutoDetect && styles.toggleButtonActive]}
+              onPress={() => setUseAutoDetect(false)}
+            >
+              <Text style={styles.toggleButtonText}>Input Manuale</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {useAutoDetect ? (
+            <AutoDetectForm onTrackDetected={handleSearch} isLoading={isLoading} />
+          ) : (
+            <SongInputForm onSearch={handleSearch} isLoading={isLoading} />
+          )}
+        </View>
+      );
+    }
 
-  const backgroundStyle = {
-    backgroundImage: song ? `linear-gradient(rgba(17, 24, 39, 0.9), rgba(17, 24, 39, 0.95)), url(${song.albumArt})` : '',
-    backgroundSize: 'cover',
-    backgroundPosition: 'center',
+    if (error) {
+      return (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorTitle}>Oops! Qualcosa è andato storto.</Text>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.errorButton} onPress={handleReset}>
+            <Text style={styles.errorButtonText}>Riprova</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (song && lyrics) {
+      if (isCarMode) {
+        const currentLyric = lyrics?.synced && currentLineIndex >= 0 
+          ? lyrics.synced[currentLineIndex]?.text 
+          : undefined;
+          
+        return (
+          <View style={styles.carModeContainer}>
+            <CarIntegration
+              currentSong={{ title: song.title, artist: song.artist }}
+              currentLyric={currentLyric}
+              isPlaying={isPlaying}
+            />
+            
+            <View style={styles.carModeHeader}>
+              <Text style={styles.carModeTitle}>{song.title}</Text>
+              <Text style={styles.carModeArtist}>{song.artist}</Text>
+            </View>
+            <View style={styles.carModeLyrics}>
+              <LyricsDisplay 
+                lyrics={lyrics.synced} 
+                rawLyrics={lyrics.raw} 
+                currentLineIndex={currentLineIndex} 
+                isCarMode={true} 
+              />
+            </View>
+            <PlayerControls 
+              isPlaying={isPlaying}
+              onPlayPause={handlePlayPause}
+              currentTime={currentTime}
+              duration={song.duration}
+              onSeek={seek}
+              isCarMode={true}
+            />
+          </View>
+        );
+      } else {
+        return (
+          <View style={styles.normalModeContainer}>
+            <View style={styles.songInfoContainer}>
+              <ImageBackground 
+                source={{ uri: song.albumArt }} 
+                style={styles.albumArt}
+                imageStyle={{ borderRadius: 12 }}
+              >
+                <LinearGradient
+                  colors={['rgba(0,0,0,0.3)', 'rgba(0,0,0,0.7)']}
+                  style={styles.albumArtOverlay}
+                />
+              </ImageBackground>
+              <Text style={styles.songTitle}>{song.title}</Text>
+              <Text style={styles.songArtist}>{song.artist}</Text>
+              <View style={styles.controlsContainer}>
+                <PlayerControls 
+                  isPlaying={isPlaying}
+                  onPlayPause={handlePlayPause}
+                  currentTime={currentTime}
+                  duration={song.duration}
+                  onSeek={seek}
+                  isCarMode={false}
+                />
+              </View>
+              
+              <CarIntegration
+                currentSong={{ title: song.title, artist: song.artist }}
+                isPlaying={isPlaying}
+              />
+            </View>
+            
+            <View style={styles.lyricsContainer}>
+              <LyricsDisplay 
+                lyrics={lyrics.synced} 
+                rawLyrics={lyrics.raw} 
+                currentLineIndex={currentLineIndex} 
+                isCarMode={false} 
+              />
+            </View>
+          </View>
+        );
+      }
+    }
+
+    return null;
   };
 
-  const containerClasses = isCarMode
-    ? 'bg-black text-white h-full flex flex-col p-4'
-    : 'max-w-4xl mx-auto h-full flex flex-col p-4';
-
   return (
-    <main style={backgroundStyle} className="min-h-screen w-full transition-all duration-500">
-      <div className={containerClasses}>
-        
-        <header className="flex justify-between items-center mb-4 flex-shrink-0">
-          <button onClick={handleReset} className={`text-2xl font-bold transition-opacity ${song ? 'opacity-100' : 'opacity-0'}`}>
-            &larr; Nuova Ricerca
-          </button>
-          
-          <button
-            onClick={() => setIsCarMode(!isCarMode)}
-            className="flex items-center gap-2 p-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/70 transition-colors"
-          >
-            <CarIcon className="w-6 h-6" />
-            <span className="hidden sm:inline">{isCarMode ? 'Disattiva' : 'Attiva'} Modalità Auto</span>
-          </button>
-        </header>
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000" />
+      <ImageBackground
+        source={song ? { uri: song.albumArt } : undefined}
+        style={styles.backgroundImage}
+        blurRadius={song ? 20 : 0}
+      >
+        <LinearGradient
+          colors={['rgba(17, 24, 39, 0.9)', 'rgba(17, 24, 39, 0.95)']}
+          style={styles.overlay}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={[styles.headerButton, { opacity: song ? 1 : 0 }]} 
+              onPress={handleReset}
+              disabled={!song}
+            >
+              <Text style={styles.backButtonText}>← Nuova Ricerca</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity
+              style={styles.carModeButton}
+              onPress={() => setIsCarMode(!isCarMode)}
+            >
+              <CarIcon size={24} color="#fff" />
+              <Text style={styles.carModeButtonText}>
+                {isCarMode ? 'Disattiva' : 'Attiva'} Modalità Auto
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-        {!song && (
-          <div className="flex-grow flex items-center justify-center">
-            <SongInputForm onSearch={handleSearch} isLoading={isLoading} />
-          </div>
-        )}
-
-        {error && (
-            <div className="flex-grow flex flex-col items-center justify-center text-center p-8 bg-red-900/50 rounded-lg">
-                <h2 className="text-2xl font-bold text-red-300 mb-4">Oops! Qualcosa è andato storto.</h2>
-                <p className="text-red-200">{error}</p>
-                <button onClick={handleReset} className="mt-6 px-4 py-2 bg-red-600 rounded-lg hover:bg-red-700">Riprova</button>
-            </div>
-        )}
-        
-        {song && lyrics && (
-          isCarMode ? (
-            <div className="flex-grow flex flex-col justify-around items-center gap-8 text-center">
-              <div>
-                <h1 className="text-5xl font-bold">{song.title}</h1>
-                <h2 className="text-3xl text-gray-400 mt-2">{song.artist}</h2>
-              </div>
-              <div className="w-full flex-grow relative">
-                 <div className="absolute inset-0">
-                    <LyricsDisplay lyrics={lyrics.synced} rawLyrics={lyrics.raw} currentLineIndex={currentLineIndex} isCarMode={true} />
-                 </div>
-              </div>
-              <PlayerControls 
-                isPlaying={isPlaying}
-                onPlayPause={handlePlayPause}
-                currentTime={currentTime}
-                duration={song.duration}
-                onSeek={seek}
-                isCarMode={true}
-              />
-            </div>
-          ) : (
-            <div className="flex-grow flex flex-col md:flex-row gap-8 items-center md:items-stretch overflow-hidden">
-              {/* Colonna Info Canzone */}
-              <div className="flex-shrink-0 flex flex-col items-center text-center p-6 bg-black/30 rounded-lg w-full md:w-1/3">
-                <img src={song.albumArt} alt={`Copertina di ${song.title}`} className="w-48 h-48 md:w-64 md:h-64 rounded-lg shadow-lg mb-6" />
-                <h1 className="text-2xl font-bold">{song.title}</h1>
-                <h2 className="text-lg text-gray-400">{song.artist}</h2>
-                <div className="mt-auto w-full pt-6">
-                  <PlayerControls 
-                    isPlaying={isPlaying}
-                    onPlayPause={handlePlayPause}
-                    currentTime={currentTime}
-                    duration={song.duration}
-                    onSeek={seek}
-                    isCarMode={false}
-                  />
-                </div>
-              </div>
-              
-              {/* Colonna Testi */}
-              <div className="flex-grow w-full md:w-2/3 bg-black/30 rounded-lg overflow-hidden flex flex-col">
-                <LyricsDisplay lyrics={lyrics.synced} rawLyrics={lyrics.raw} currentLineIndex={currentLineIndex} isCarMode={false} />
-              </div>
-            </div>
-          )
-        )}
-      </div>
-    </main>
+          {renderContent()}
+        </LinearGradient>
+      </ImageBackground>
+    </SafeAreaView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#111827',
+  },
+  backgroundImage: {
+    flex: 1,
+  },
+  overlay: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
+  headerButton: {
+    flex: 1,
+  },
+  backButtonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  carModeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(75, 85, 99, 0.5)',
+    borderRadius: 8,
+  },
+  carModeButtonText: {
+    color: '#fff',
+    marginLeft: 8,
+    fontSize: 14,
+  },
+  centeredContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    backgroundColor: 'rgba(153, 27, 27, 0.5)',
+    margin: 16,
+    borderRadius: 12,
+  },
+  errorTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FCA5A5',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  errorText: {
+    fontSize: 16,
+    color: '#FECACA',
+    textAlign: 'center',
+    marginBottom: 24,
+  },
+  errorButton: {
+    backgroundColor: '#DC2626',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  errorButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+  },
+  carModeContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    justifyContent: 'space-around',
+  },
+  carModeHeader: {
+    alignItems: 'center',
+    paddingVertical: 24,
+  },
+  carModeTitle: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  carModeArtist: {
+    fontSize: 24,
+    color: '#9CA3AF',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  carModeLyrics: {
+    flex: 1,
+    marginVertical: 16,
+  },
+  normalModeContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 16,
+  },
+  songInfoContainer: {
+    alignItems: 'center',
+    paddingVertical: 24,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  albumArt: {
+    width: width * 0.6,
+    height: width * 0.6,
+    maxWidth: 250,
+    maxHeight: 250,
+    marginBottom: 16,
+  },
+  albumArtOverlay: {
+    flex: 1,
+    borderRadius: 12,
+  },
+  songTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  songArtist: {
+    fontSize: 18,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  controlsContainer: {
+    width: '100%',
+    paddingHorizontal: 16,
+  },
+  lyricsContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    borderRadius: 12,
+    overflow: 'hidden',
+  },
+  inputToggle: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    borderRadius: 8,
+    padding: 4,
+  },
+  toggleButton: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
+  },
+  toggleButtonActive: {
+    backgroundColor: '#059669',
+  },
+  toggleButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 14,
+  },
+});
 
 export default App;

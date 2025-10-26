@@ -1,5 +1,13 @@
 
 import React, { useCallback } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  Dimensions,
+} from 'react-native';
+import Slider from '@react-native-community/slider';
 import { PlayIcon, PauseIcon } from './Icon';
 
 interface PlayerControlsProps {
@@ -18,6 +26,8 @@ const formatTime = (timeInSeconds: number) => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
+const { width } = Dimensions.get('window');
+
 export const PlayerControls: React.FC<PlayerControlsProps> = ({
   isPlaying,
   onPlayPause,
@@ -26,50 +36,114 @@ export const PlayerControls: React.FC<PlayerControlsProps> = ({
   onSeek,
   isCarMode,
 }) => {
-  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    onSeek(Number(e.target.value));
+  const handleSeek = useCallback((value: number) => {
+    onSeek(value);
   }, [onSeek]);
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   if (isCarMode) {
     return (
-      <div className="flex flex-col items-center justify-center p-8 bg-black/50 rounded-lg">
-        <button
-          onClick={onPlayPause}
-          className="bg-gray-100 text-black rounded-full p-8 transition-transform transform hover:scale-110 active:scale-95 shadow-lg"
-          aria-label={isPlaying ? 'Pausa' : 'Riproduci'}
+      <View style={styles.carModeContainer}>
+        <TouchableOpacity
+          style={styles.carModeButton}
+          onPress={onPlayPause}
         >
-          {isPlaying ? <PauseIcon className="w-16 h-16" /> : <PlayIcon className="w-16 h-16" />}
-        </button>
-        <div className="text-4xl font-mono mt-8">{formatTime(currentTime)} / {formatTime(duration)}</div>
-      </div>
+          {isPlaying ? (
+            <PauseIcon size={64} color="#000" />
+          ) : (
+            <PlayIcon size={64} color="#000" />
+          )}
+        </TouchableOpacity>
+        <Text style={styles.carModeTime}>
+          {formatTime(currentTime)} / {formatTime(duration)}
+        </Text>
+      </View>
     );
   }
 
   return (
-    <div className="flex items-center gap-4 w-full px-4 py-2 bg-gray-800/50 backdrop-blur-sm rounded-lg">
-      <button
-        onClick={onPlayPause}
-        className="text-white hover:text-green-400 transition-colors"
-        aria-label={isPlaying ? 'Pausa' : 'Riproduci'}
+    <View style={styles.container}>
+      <TouchableOpacity
+        style={styles.playButton}
+        onPress={onPlayPause}
       >
-        {isPlaying ? <PauseIcon className="w-8 h-8" /> : <PlayIcon className="w-8 h-8" />}
-      </button>
+        {isPlaying ? (
+          <PauseIcon size={32} color="#fff" />
+        ) : (
+          <PlayIcon size={32} color="#fff" />
+        )}
+      </TouchableOpacity>
 
-      <span className="text-xs font-mono w-12 text-center">{formatTime(currentTime)}</span>
+      <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
 
-      <input
-        type="range"
-        min="0"
-        max={duration}
+      <Slider
+        style={styles.slider}
+        minimumValue={0}
+        maximumValue={duration}
         value={currentTime}
-        onChange={handleSeek}
-        className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-green-500"
-        style={{ backgroundSize: `${progress}% 100%` }}
+        onValueChange={handleSeek}
+        minimumTrackTintColor="#34D399"
+        maximumTrackTintColor="#4B5563"
+        thumbStyle={styles.sliderThumb}
       />
       
-      <span className="text-xs font-mono w-12 text-center">{formatTime(duration)}</span>
-    </div>
+      <Text style={styles.timeText}>{formatTime(duration)}</Text>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: 'rgba(75, 85, 99, 0.5)',
+    borderRadius: 8,
+    gap: 16,
+  },
+  playButton: {
+    padding: 8,
+  },
+  timeText: {
+    color: '#fff',
+    fontSize: 12,
+    fontFamily: 'monospace',
+    minWidth: 48,
+    textAlign: 'center',
+  },
+  slider: {
+    flex: 1,
+    height: 20,
+  },
+  sliderThumb: {
+    backgroundColor: '#34D399',
+    width: 20,
+    height: 20,
+  },
+  carModeContainer: {
+    alignItems: 'center',
+    paddingVertical: 32,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    borderRadius: 12,
+    gap: 32,
+  },
+  carModeButton: {
+    backgroundColor: '#F3F4F6',
+    borderRadius: 80,
+    padding: 32,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  carModeTime: {
+    fontSize: 32,
+    fontFamily: 'monospace',
+    color: '#fff',
+    fontWeight: 'bold',
+  },
+});

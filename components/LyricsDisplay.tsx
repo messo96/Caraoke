@@ -1,5 +1,13 @@
 
 import React, { useEffect, useRef } from 'react';
+import {
+  View,
+  Text,
+  ScrollView,
+  StyleSheet,
+  Animated,
+  Dimensions,
+} from 'react-native';
 import type { LyricLine } from '../types';
 
 interface LyricsDisplayProps {
@@ -9,74 +17,180 @@ interface LyricsDisplayProps {
   isCarMode: boolean;
 }
 
-export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ lyrics, rawLyrics, currentLineIndex, isCarMode }) => {
-  const activeLineRef = useRef<HTMLParagraphElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+const { width, height } = Dimensions.get('window');
 
+export const LyricsDisplay: React.FC<LyricsDisplayProps> = ({ 
+  lyrics, 
+  rawLyrics, 
+  currentLineIndex, 
+  isCarMode 
+}) => {
+  const scrollViewRef = useRef<ScrollView>(null);
+  const lineRefs = useRef<{ [key: number]: View | null }>({});
+  
   // Gestisce lo scroll automatico per mantenere la riga attiva al centro.
   useEffect(() => {
-    if (activeLineRef.current && containerRef.current) {
-      const container = containerRef.current;
-      const activeLine = activeLineRef.current;
-      const containerHeight = container.clientHeight;
-      const activeLineTop = activeLine.offsetTop;
-      const activeLineHeight = activeLine.clientHeight;
-      
-      const scrollTop = activeLineTop - containerHeight / 2 + activeLineHeight / 2;
-      
-      container.scrollTo({
-        top: scrollTop,
-        behavior: 'smooth',
-      });
+    if (scrollViewRef.current && lineRefs.current[currentLineIndex]) {
+      const activeLineRef = lineRefs.current[currentLineIndex];
+      if (activeLineRef) {
+        activeLineRef.measureLayout(
+          scrollViewRef.current.getInnerViewNode(),
+          (x, y, width, height) => {
+            const scrollY = y - (height / 2) + (height / 4);
+            scrollViewRef.current?.scrollTo({ y: scrollY, animated: true });
+          },
+          () => {}
+        );
+      }
     }
   }, [currentLineIndex]);
-  
-  const baseTextStyle = "transition-all duration-300";
-  const carModeTextSize = "text-4xl md:text-6xl font-bold p-4";
-  const normalModeTextSize = "text-xl md:text-2xl p-2";
 
   if (lyrics.length > 0) {
     return (
-      <div 
-        ref={containerRef} 
-        className={`w-full h-full overflow-y-auto text-center font-semibold scroll-smooth ${isCarMode ? 'p-4' : 'p-6'}`}
+      <ScrollView
+        ref={scrollViewRef}
+        style={styles.container}
+        contentContainerStyle={[
+          styles.contentContainer,
+          isCarMode && styles.carModeContent
+        ]}
+        showsVerticalScrollIndicator={false}
       >
         {lyrics.map((line, index) => {
           const isActive = index === currentLineIndex;
           const isPast = index < currentLineIndex;
           
-          let lineStyle = "";
+          let textStyle = [styles.lyricLine];
+          
           if (isCarMode) {
-            lineStyle = isActive 
-                ? "text-yellow-300 scale-105" 
-                : "text-gray-200 opacity-60 scale-95";
+            textStyle.push(styles.carModeText);
+            if (isActive) {
+              textStyle.push(styles.carModeActive);
+            } else {
+              textStyle.push(styles.carModeInactive);
+            }
           } else {
-            lineStyle = isActive 
-                ? "text-green-300 scale-100" 
-                : isPast ? "text-gray-500" : "text-gray-300";
+            textStyle.push(styles.normalModeText);
+            if (isActive) {
+              textStyle.push(styles.normalModeActive);
+            } else if (isPast) {
+              textStyle.push(styles.normalModePast);
+            } else {
+              textStyle.push(styles.normalModeInactive);
+            }
           }
 
           return (
-            <p
+            <View
               key={`${line.time}-${index}`}
-              ref={isActive ? activeLineRef : null}
-              className={`${baseTextStyle} ${isCarMode ? carModeTextSize : normalModeTextSize} ${lineStyle}`}
+              ref={(ref) => {
+                lineRefs.current[index] = ref;
+              }}
+              style={styles.lineContainer}
             >
-              {line.text}
-            </p>
+              <Text style={textStyle}>
+                {line.text}
+              </Text>
+            </View>
           );
         })}
-      </div>
+      </ScrollView>
     );
   }
 
   // Fallback per testi non sincronizzati
   return (
-    <div className="w-full h-full overflow-y-auto p-6 text-center">
-        <h3 className={`font-bold mb-4 ${isCarMode ? 'text-3xl' : 'text-xl'}`}>Testo non sincronizzato</h3>
-        <p className={`whitespace-pre-wrap text-gray-400 ${isCarMode ? 'text-2xl' : 'text-lg'}`}>
-            {rawLyrics}
-        </p>
-    </div>
+    <ScrollView
+      style={styles.container}
+      contentContainerStyle={styles.rawLyricsContainer}
+    >
+      <Text style={[
+        styles.rawLyricsTitle,
+        isCarMode && styles.carModeRawTitle
+      ]}>
+        Testo non sincronizzato
+      </Text>
+      <Text style={[
+        styles.rawLyricsText,
+        isCarMode && styles.carModeRawText
+      ]}>
+        {rawLyrics}
+      </Text>
+    </ScrollView>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  contentContainer: {
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  carModeContent: {
+    paddingVertical: 16,
+  },
+  lineContainer: {
+    marginVertical: 8,
+    paddingHorizontal: 16,
+  },
+  lyricLine: {
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  normalModeText: {
+    fontSize: 20,
+    lineHeight: 32,
+  },
+  normalModeActive: {
+    color: '#34D399',
+    transform: [{ scale: 1.05 }],
+  },
+  normalModePast: {
+    color: '#6B7280',
+  },
+  normalModeInactive: {
+    color: '#D1D5DB',
+  },
+  carModeText: {
+    fontSize: 32,
+    lineHeight: 48,
+    fontWeight: 'bold',
+  },
+  carModeActive: {
+    color: '#FDE047',
+    transform: [{ scale: 1.1 }],
+  },
+  carModeInactive: {
+    color: '#E5E7EB',
+    opacity: 0.6,
+    transform: [{ scale: 0.95 }],
+  },
+  rawLyricsContainer: {
+    paddingVertical: 24,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  rawLyricsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#fff',
+    marginBottom: 16,
+    textAlign: 'center',
+  },
+  carModeRawTitle: {
+    fontSize: 24,
+  },
+  rawLyricsText: {
+    fontSize: 16,
+    lineHeight: 24,
+    color: '#9CA3AF',
+    textAlign: 'center',
+  },
+  carModeRawText: {
+    fontSize: 20,
+    lineHeight: 32,
+  },
+});
